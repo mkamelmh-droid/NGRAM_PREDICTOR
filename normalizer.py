@@ -33,42 +33,50 @@ class Normalizer:
     def strip_gutenberg_header_footer(self, text: str) -> str:
         """
         Remove Project Gutenberg header and footer.
+        Handles multiple books concatenated together.
         
         Args:
-            text: Raw text from Project Gutenberg
+            text: Raw text from Project Gutenberg (may contain multiple books)
             
         Returns:
-            Text with header and footer removed
+            Text with all headers and footers removed
         """
-        # Try to find the standard *** markers first
-        start_match = re.search(
-            r"\*\*\*\s*START OF (THIS|THE) PROJECT GUTENBERG EBOOK.*?\*\*\*",
-            text,
-            re.IGNORECASE | re.DOTALL
-        )
-        end_match = re.search(
-            r"\*\*\*\s*END OF (THIS|THE) PROJECT GUTENBERG EBOOK.*?\*\*\*",
-            text,
-            re.IGNORECASE | re.DOTALL
-        )
+        # Find all START markers
+        start_pattern = r"\*\*\*\s*START OF (THIS|THE) PROJECT GUTENBERG EBOOK.*?\*\*\*"
+        start_matches = list(re.finditer(start_pattern, text, re.IGNORECASE | re.DOTALL))
         
-        if start_match and end_match:
-            return text[start_match.end():end_match.start()].strip()
+        # Find all END markers  
+        end_pattern = r"\*\*\*\s*END OF (THIS|THE) PROJECT GUTENBERG EBOOK.*?\*\*\*"
+        end_matches = list(re.finditer(end_pattern, text, re.IGNORECASE | re.DOTALL))
         
-        # Fallback to simpler markers
-        start_match = re.search(
-            r"START OF (THIS|THE) PROJECT GUTENBERG EBOOK",
-            text,
-            re.IGNORECASE
-        )
-        end_match = re.search(
-            r"END OF (THIS|THE) PROJECT GUTENBERG EBOOK",
-            text,
-            re.IGNORECASE
-        )
+        if start_matches and end_matches:
+            # Remove headers and footers by keeping only content between markers
+            result_parts = []
+            for start_match, end_match in zip(start_matches, end_matches):
+                # Get content after each START marker and before each END marker
+                content = text[start_match.end():end_match.start()].strip()
+                if content:
+                    result_parts.append(content)
+            
+            if result_parts:
+                return '\n\n'.join(result_parts)
         
-        if start_match and end_match:
-            return text[start_match.end():end_match.start()].strip()
+        # Fallback: try simpler markers
+        start_pattern = r"START OF (THIS|THE) PROJECT GUTENBERG EBOOK"
+        end_pattern = r"END OF (THIS|THE) PROJECT GUTENBERG EBOOK"
+        
+        start_matches = list(re.finditer(start_pattern, text, re.IGNORECASE))
+        end_matches = list(re.finditer(end_pattern, text, re.IGNORECASE))
+        
+        if start_matches and end_matches:
+            result_parts = []
+            for start_match, end_match in zip(start_matches, end_matches):
+                content = text[start_match.end():end_match.start()].strip()
+                if content:
+                    result_parts.append(content)
+            
+            if result_parts:
+                return '\n\n'.join(result_parts)
         
         return text.strip()
     
@@ -166,16 +174,18 @@ class Normalizer:
         # Step 2: Strip Gutenberg header/footer
         stripped_text = self.strip_gutenberg_header_footer(raw_text)
         
-        # Step 3: Normalize
-        normalized_text = self.normalize(stripped_text)
+        # Step 4: Sentence tokenize BEFORE normalization (before punctuation is removed)
+        sentences = self.sentence_tokenize(stripped_text)
         
-        # Step 4 & 5: Sentence tokenize and word tokenize
-        sentences = self.sentence_tokenize(normalized_text)
-        tokenized_sentences = [
-            ' '.join(self.word_tokenize(sentence))
-            for sentence in sentences
-            if self.word_tokenize(sentence)  # Skip empty sentences
-        ]
+        # Step 3 & 5: Normalize and word tokenize
+        tokenized_sentences = []
+        for sentence in sentences:
+            # Normalize the sentence
+            normalized_sentence = self.normalize(sentence)
+            # Word tokenize the normalized sentence
+            tokens = self.word_tokenize(normalized_sentence)
+            if tokens:  # Skip empty sentences
+                tokenized_sentences.append(' '.join(tokens))
         
         # Step 6: Write output file
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
