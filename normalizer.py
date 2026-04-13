@@ -89,23 +89,21 @@ class Normalizer:
     
     def normalize(self, text: str) -> str:
         """
-        Normalize text: lowercase, remove punctuation, remove numbers, remove extra whitespace.
+        Normalize text: lowercase, clean whitespace, but keep punctuation as separate tokens.
         
         Args:
             text: Raw input text to normalize
             
         Returns:
-            Normalized text
+            Normalized text with punctuation preserved
         """
         # STEP A: Convert to lowercase for uniformity
         # Example: "Hello World" -> "hello world"
         text = text.lower()
         
-        # STEP B: Remove all non-alphabetic characters (except spaces)
-        # Regex [^a-z\s] matches anything that is NOT a-z or whitespace
-        # This removes: punctuation (!, ?, .), numbers (0-9), special chars ($, @, etc.)
-        # Example: "hello world! cost $19.99" -> "hello world cost "
-        text = re.sub(r'[^a-z\s]', '', text)
+        # STEP B: Keep punctuation but clean up whitespace
+        # Instead of removing punctuation, we preserve it for better context
+        # This allows the model to learn punctuation patterns
         
         # STEP C: Clean up whitespace
         # Replace multiple consecutive spaces with single space
