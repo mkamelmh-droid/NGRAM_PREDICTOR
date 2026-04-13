@@ -203,19 +203,19 @@ class NGramModel:
         """
         Save probability tables to JSON file.
         
-        File structure:
+        File structure (NGRAM_ORDER=4 example):
         {
-          "1gram": {
-            "": {word: prob, ...},  # context is empty tuple for 1-grams
-            ...
-          },
-          "2gram": {
-            "(word1,)": {word: prob, ...},
-            ...
-          },
-          ...
-          "Ngram": {...}
+          "1gram": {"the": 0.05, "holmes": 0.03, "<UNK>": 0.01},
+          "2gram": {"holmes": {"said": 0.42, "the": 0.12}},
+          "3gram": {"holmes said": {"watson": 0.38, "me": 0.21}},
+          "4gram": {"holmes said to": {"watson": 0.31, "and": 0.18}}
         }
+        
+        Context serialization:
+        - 1-gram: special key "" (empty string) for empty tuple context
+        - 2-gram: single word "holmes"
+        - 3-gram: space-separated words "holmes said"
+        - 4-gram: space-separated words "holmes said to"
         
         Args:
             model_path: Path to save model.json
@@ -229,9 +229,15 @@ class NGramModel:
             order_key = f"{order}gram"
             model_dict[order_key] = {}
             
-            # Convert context tuples to strings (JSON keys must be strings)
+            # Convert context tuples to space-separated strings
             for context, probs in self.probabilities[order_key].items():
-                context_str = str(context)  # Serialize tuple to string
+                if context == ():
+                    # 1-gram: empty context -> empty string key
+                    context_str = ""
+                else:
+                    # n-gram: tuple ("word1", "word2", ...) -> "word1 word2 ..."
+                    context_str = " ".join(context)
+                
                 model_dict[order_key][context_str] = probs
         
         # Save to JSON
@@ -263,6 +269,14 @@ class NGramModel:
         Called once at program startup before passing model to Predictor.
         Restores all probability tables and vocabulary from disk.
         
+        File format (space-separated context strings):
+        {
+          "1gram": {"": {word: prob, ...}},           # "" = empty context for 1-grams
+          "2gram": {"word1": {word: prob, ...}},      # single word context
+          "3gram": {"word1 word2": {word: prob, ...}}, # space-separated context
+          "4gram": {"word1 word2 word3": {...}}       # space-separated context
+        }
+        
         Args:
             model_path: Path to model.json (output of save_model)
             vocab_path: Path to vocab.json (output of save_vocab)
@@ -288,8 +302,13 @@ class NGramModel:
             self.probabilities[order_key] = {}
             
             for context_str, probs in contexts.items():
-                # Deserialize context string back to tuple
-                # str() of empty tuple is "()" → eval to ()
-                # str() of (x,) is "(x,)" → eval to (x,)
-                context = eval(context_str)
+                # Deserialize space-separated context string back to tuple
+                # "" (empty string) -> ()
+                # "word1" -> ("word1",)
+                # "word1 word2" -> ("word1", "word2")
+                if context_str == "":
+                    context = ()
+                else:
+                    context = tuple(context_str.split())
+                
                 self.probabilities[order_key][context] = probs
