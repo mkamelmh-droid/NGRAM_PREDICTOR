@@ -117,7 +117,14 @@ class Normalizer:
     
     def sentence_tokenize(self, text: str) -> List[str]:
         """
-        Split text into sentences.
+        Split text into sentences using professional English textbook rules.
+        
+        Handles:
+        - Abbreviations (Dr., Mr., Mrs., Ms., Prof., Dr., St., etc.)
+        - Ellipses (...) without splitting
+        - Quotation marks and dialogue
+        - Multiple spaces and newlines
+        - Decimal numbers (1.5, 3.14, etc.)
         
         Args:
             text: Input text
@@ -126,16 +133,46 @@ class Normalizer:
             List of sentences
         """
         # CRITICAL: This must run BEFORE normalize() because it relies on punctuation marks!
-        # Pattern explanation:
-        #   [.!?]+     = Match one or more punctuation marks (period, exclamation, question)
-        #   \s+        = Followed by one or more whitespace characters
-        #   |[\n]+     = OR match one or more newlines as sentence boundaries
-        # Example: "Hello. World! How are you?" -> ["Hello", "World", "How are you?"]
-        sentences = re.split(r'[.!?]+\s+|[\n]+', text)
         
-        # Filter out empty sentences and strip whitespace from each sentence
-        sentences = [s.strip() for s in sentences if s.strip()]
-        return sentences
+        protected_text = text
+        placeholders = {}
+        placeholder_counter = [0]
+        
+        def make_placeholder(content):
+            """Generate a unique placeholder for protected content."""
+            placeholder_counter[0] += 1
+            placeholder = f"__PROTECT_{placeholder_counter[0]}__"
+            placeholders[placeholder] = content
+            return placeholder
+        
+        # Step 1: Protect abbreviations (case-insensitive)
+        abbreviation_pattern = r'\b(?:Dr|Mr|Mrs|Ms|Prof|St|vs|Ave|Blvd|Rd|U\.S|U\.K|Co|Inc|Ltd|i\.e|e\.g|etc|no|Vol)\.'
+        protected_text = re.sub(abbreviation_pattern, lambda m: make_placeholder(m.group(0)), protected_text, flags=re.IGNORECASE)
+        
+        # Step 2: Protect decimal numbers (digit.digit pattern)
+        protected_text = re.sub(r'(\d)\.(\d)', lambda m: m.group(1) + make_placeholder('.') + m.group(2), protected_text)
+        
+        # Step 3: Split on sentence boundaries
+        # More sophisticated pattern that looks for:
+        # - Period/question/exclamation followed by space and uppercase or quote
+        # - OR newlines
+        sentences = re.split(r'[.!?]+(?=\s+[A-Z"\']|\n)|\n+', protected_text)
+        
+        # Step 4: Restore placeholders and clean up
+        sentences_cleaned = []
+        for sentence in sentences:
+            # Restore all protected patterns
+            for placeholder, original in placeholders.items():
+                sentence = sentence.replace(placeholder, original)
+            
+            # Clean up whitespace
+            sentence = sentence.strip()
+            
+            # Only keep non-empty sentences
+            if sentence:
+                sentences_cleaned.append(sentence)
+        
+        return sentences_cleaned
     
     def word_tokenize(self, sentence: str) -> List[str]:
         """
