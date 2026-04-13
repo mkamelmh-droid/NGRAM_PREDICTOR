@@ -244,7 +244,7 @@ class Normalizer:
             for tokenized_sentence in tokenized_sentences:
                 f.write(tokenized_sentence + '\n')
         
-        # Result: data/train_tokens.txt
+        # Result: data/eval_tokens.txt
         #   - 27,324 lines (sentences)
         #   - 203,448 tokens (words)
         #   - 1,082,967 bytes

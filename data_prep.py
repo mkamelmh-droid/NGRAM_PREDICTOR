@@ -29,7 +29,7 @@ BOOK_SOURCES = {
 
 # Default folders
 RAW_DATA_DIR = "data/train_raw"
-TOKENS_OUTPUT_FILE = "data/train_tokens.txt"
+TOKENS_OUTPUT_FILE = "data/eval_tokens.txt"
 EVAL_RAW_DATA_DIR = "data/eval_raw"
 EVAL_TOKENS_OUTPUT_FILE = "data/eval_tokens.txt"
 
