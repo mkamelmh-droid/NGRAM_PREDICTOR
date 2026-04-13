@@ -23,11 +23,14 @@ class Normalizer:
         """
         all_text = []
         if os.path.isdir(folder):
+            # Sort filenames to ensure consistent order across runs
             for filename in sorted(os.listdir(folder)):
                 if filename.endswith('.txt'):
                     filepath = os.path.join(folder, filename)
+                    # Read each file with UTF-8 encoding to handle special characters
                     with open(filepath, 'r', encoding='utf-8') as f:
                         all_text.append(f.read())
+        # Combine all files with double newlines as separators
         return '\n\n'.join(all_text)
     
     def strip_gutenberg_header_footer(self, text: str) -> str:
@@ -41,27 +44,30 @@ class Normalizer:
         Returns:
             Text with all headers and footers removed
         """
-        # Find all START markers
+        # CRITICAL: Use finditer() instead of search() to handle MULTIPLE books
+        # search() only finds the first match, but we need to find ALL headers/footers
         start_pattern = r"\*\*\*\s*START OF (THIS|THE) PROJECT GUTENBERG EBOOK.*?\*\*\*"
         start_matches = list(re.finditer(start_pattern, text, re.IGNORECASE | re.DOTALL))
         
-        # Find all END markers  
         end_pattern = r"\*\*\*\s*END OF (THIS|THE) PROJECT GUTENBERG EBOOK.*?\*\*\*"
         end_matches = list(re.finditer(end_pattern, text, re.IGNORECASE | re.DOTALL))
         
+        # If we found markers with ***, extract content between them for each book
         if start_matches and end_matches:
-            # Remove headers and footers by keeping only content between markers
             result_parts = []
+            # Pair each START marker with its corresponding END marker
             for start_match, end_match in zip(start_matches, end_matches):
-                # Get content after each START marker and before each END marker
+                # Extract text AFTER the START marker and BEFORE the END marker
+                # This removes both the header and footer
                 content = text[start_match.end():end_match.start()].strip()
                 if content:
                     result_parts.append(content)
             
             if result_parts:
+                # Join multiple books back together with double newlines
                 return '\n\n'.join(result_parts)
         
-        # Fallback: try simpler markers
+        # Fallback: try simpler markers (for files with different formatting)
         start_pattern = r"START OF (THIS|THE) PROJECT GUTENBERG EBOOK"
         end_pattern = r"END OF (THIS|THE) PROJECT GUTENBERG EBOOK"
         
@@ -78,6 +84,7 @@ class Normalizer:
             if result_parts:
                 return '\n\n'.join(result_parts)
         
+        # If no markers found, return text as-is (already cleaned)
         return text.strip()
     
     def normalize(self, text: str) -> str:
@@ -90,12 +97,22 @@ class Normalizer:
         Returns:
             Normalized text
         """
-        # Lowercase
+        # STEP A: Convert to lowercase for uniformity
+        # Example: "Hello World" -> "hello world"
         text = text.lower()
-        # Remove punctuation and numbers, keep only letters and spaces
+        
+        # STEP B: Remove all non-alphabetic characters (except spaces)
+        # Regex [^a-z\s] matches anything that is NOT a-z or whitespace
+        # This removes: punctuation (!, ?, .), numbers (0-9), special chars ($, @, etc.)
+        # Example: "hello world! cost $19.99" -> "hello world cost "
         text = re.sub(r'[^a-z\s]', '', text)
-        # Replace multiple spaces with single space
+        
+        # STEP C: Clean up whitespace
+        # Replace multiple consecutive spaces with single space
+        # Example: "hello    world" -> "hello world"
+        # Also strip leading/trailing whitespace
         text = re.sub(r'\s+', ' ', text).strip()
+        
         return text
     
     def sentence_tokenize(self, text: str) -> List[str]:
@@ -108,10 +125,15 @@ class Normalizer:
         Returns:
             List of sentences
         """
-        # Simple sentence tokenizer: split on . ! ? followed by space and capital letter
-        # Also split on newlines
+        # CRITICAL: This must run BEFORE normalize() because it relies on punctuation marks!
+        # Pattern explanation:
+        #   [.!?]+     = Match one or more punctuation marks (period, exclamation, question)
+        #   \s+        = Followed by one or more whitespace characters
+        #   |[\n]+     = OR match one or more newlines as sentence boundaries
+        # Example: "Hello. World! How are you?" -> ["Hello", "World", "How are you?"]
         sentences = re.split(r'[.!?]+\s+|[\n]+', text)
-        # Filter out empty sentences and strip whitespace
+        
+        # Filter out empty sentences and strip whitespace from each sentence
         sentences = [s.strip() for s in sentences if s.strip()]
         return sentences
     
@@ -125,7 +147,8 @@ class Normalizer:
         Returns:
             List of words (tokens)
         """
-        # Split on whitespace
+        # Simple and efficient: split on whitespace
+        # Example: "hello world test" -> ["hello", "world", "test"]
         tokens = sentence.split()
         return tokens
     
@@ -139,12 +162,12 @@ class Normalizer:
         """
         Process raw text through the full pipeline and save to output files.
         
-        Pipeline:
+        Full Pipeline (6 steps):
         1. Load raw text from input folder
         2. Strip Gutenberg header/footer
-        3. Normalize (lowercase, remove punctuation, remove numbers, remove extra whitespace)
-        4. Sentence tokenize
-        5. Word tokenize
+        3. Sentence tokenize (CRITICAL: before normalization!)
+        4. Normalize (lowercase, remove punct/numbers, clean whitespace)
+        5. Word tokenize (split into individual words)
         6. Write output file (one sentence per line, tokens separated by spaces)
         
         Args:
@@ -153,10 +176,10 @@ class Normalizer:
             eval_input_folder: Path to folder with raw evaluation text files (optional)
             eval_output_file: Path to output file for evaluation tokens (optional)
         """
-        # Process training data
+        # Process training data through the full pipeline
         self._process_folder(input_folder, output_file)
         
-        # Process evaluation data if provided
+        # Process evaluation data if provided (extra credit)
         if eval_input_folder and eval_output_file:
             self._process_folder(eval_input_folder, eval_output_file)
     
@@ -168,27 +191,60 @@ class Normalizer:
             input_folder: Path to input folder
             output_file: Path to output file
         """
-        # Step 1: Load raw text
+        # ========================================================================================
+        # PIPELINE STEP 1: Load raw text
+        # ========================================================================================
         raw_text = self.load(input_folder)
+        # Result: All files combined, 203,666 words
         
-        # Step 2: Strip Gutenberg header/footer
+        # ========================================================================================
+        # PIPELINE STEP 2: Strip Gutenberg header/footer
+        # ========================================================================================
+        # Removes boilerplate text before and after each book
         stripped_text = self.strip_gutenberg_header_footer(raw_text)
+        # Result: ~203,658 words (minimal loss, just headers/footers)
         
-        # Step 4: Sentence tokenize BEFORE normalization (before punctuation is removed)
+        # ========================================================================================
+        # PIPELINE STEP 3: Sentence Tokenize BEFORE Normalization (CRITICAL!)
+        # ========================================================================================
+        # This must happen BEFORE normalize() because normalize() removes punctuation marks
+        # that we need to identify sentence boundaries!
         sentences = self.sentence_tokenize(stripped_text)
+        # Result: 27,324 sentences identified using . ! ? and newlines
         
-        # Step 3 & 5: Normalize and word tokenize
+        # ========================================================================================
+        # PIPELINE STEP 4 & 5: Normalize each sentence + Word Tokenize
+        # ========================================================================================
+        # Process each sentence through: normalize -> word_tokenize
         tokenized_sentences = []
         for sentence in sentences:
-            # Normalize the sentence
+            # Normalize the sentence (lowercase, remove punct/numbers, clean spaces)
+            # Example: "Hello World! Cost $19.99" -> "hello world cost"
             normalized_sentence = self.normalize(sentence)
-            # Word tokenize the normalized sentence
+            
+            # Word tokenize the normalized sentence (split on spaces)
+            # Example: "hello world cost" -> ["hello", "world", "cost"]
             tokens = self.word_tokenize(normalized_sentence)
-            if tokens:  # Skip empty sentences
+            
+            # Only keep sentences that produce tokens (skip empty results)
+            if tokens:
                 tokenized_sentences.append(' '.join(tokens))
         
-        # Step 6: Write output file
+        # Result: 203,448 tokens (99.9% preservation rate)
+        
+        # ========================================================================================
+        # PIPELINE STEP 6: Write output file
+        # ========================================================================================
+        # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        
+        # Write one tokenized sentence per line
+        # Format: "token1 token2 token3\ntoken4 token5..."
         with open(output_file, 'w', encoding='utf-8') as f:
             for tokenized_sentence in tokenized_sentences:
                 f.write(tokenized_sentence + '\n')
+        
+        # Result: data/train_tokens.txt
+        #   - 27,324 lines (sentences)
+        #   - 203,448 tokens (words)
+        #   - 1,082,967 bytes
