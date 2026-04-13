@@ -1,4 +1,5 @@
 """Text normalization module for N-gram predictor."""
+import re
 
 
 class Normalizer:
@@ -18,4 +19,10 @@ class Normalizer:
         Returns:
             Normalized text
         """
-        raise NotImplementedError("Subclasses must implement normalize()")
+        # Lowercase
+        text = text.lower()
+        # Remove punctuation and non-alphabetic characters except spaces
+        text = re.sub(r'[^a-z\s]', '', text)
+        # Replace multiple spaces with single
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text

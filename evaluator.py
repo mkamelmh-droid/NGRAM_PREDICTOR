@@ -1,6 +1,7 @@
 """Evaluator module for model performance evaluation (extra credit)."""
 from ngram_model import NGramModel
 from normalizer import Normalizer
+import math
 
 
 class Evaluator:
@@ -27,4 +28,23 @@ class Evaluator:
         Returns:
             Dictionary containing evaluation metrics
         """
-        raise NotImplementedError("Subclasses must implement run()")
+        total_log_prob = 0.0
+        total_words = 0
+        
+        for text in test_texts:
+            normalized = self.normalizer.normalize(text)
+            words = ['<s>'] * (self.model.n - 1) + normalized.split() + ['</s>']
+            for i in range(self.model.n - 1, len(words)):
+                context = tuple(words[i - self.model.n + 1:i])
+                next_word = words[i]
+                probs = self.model.lookup(context)
+                if next_word in probs:
+                    prob = probs[next_word]
+                else:
+                    # Use backoff or uniform
+                    prob = 1.0 / len(self.model.vocab)
+                total_log_prob += math.log(prob)
+                total_words += 1
+        
+        perplexity = math.exp(-total_log_prob / total_words) if total_words > 0 else float('inf')
+        return {'perplexity': perplexity}

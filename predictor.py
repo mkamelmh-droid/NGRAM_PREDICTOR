@@ -2,6 +2,7 @@
 from typing import List
 from ngram_model import NGramModel
 from normalizer import Normalizer
+import heapq
 
 
 class Predictor:
@@ -29,4 +30,14 @@ class Predictor:
         Returns:
             List of k most likely next words
         """
-        raise NotImplementedError("Subclasses must implement predict_next()")
+        normalized = self.normalizer.normalize(context)
+        words = normalized.split()
+        if len(words) < self.model.n - 1:
+            context_tuple = tuple(['<s>'] * (self.model.n - 1 - len(words)) + words)
+        else:
+            context_tuple = tuple(words[-(self.model.n - 1):])
+        
+        probs = self.model.lookup(context_tuple)
+        # Get top k
+        top_k = heapq.nlargest(k, probs.items(), key=lambda x: x[1])
+        return [word for word, prob in top_k]

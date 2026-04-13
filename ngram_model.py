@@ -1,5 +1,8 @@
 """N-Gram language model module."""
 from typing import Dict, List, Tuple
+import json
+import os
+from collections import defaultdict, Counter
 
 
 class NGramModel:
@@ -14,8 +17,8 @@ class NGramModel:
         """
         self.n = n
         self.vocab = set()
-        self.counts = {}
-        self.probabilities = {}
+        self.counts = defaultdict(lambda: defaultdict(Counter))  # counts[order][context][word] = count
+        self.probabilities = {}  # Will store smoothed probabilities
     
     def build_vocab(self, texts: List[str]) -> None:
         """
@@ -24,7 +27,12 @@ class NGramModel:
         Args:
             texts: List of text samples to build vocabulary from
         """
-        raise NotImplementedError("Subclasses must implement build_vocab()")
+        for text in texts:
+            words = text.split()
+            self.vocab.update(words)
+        # Add special tokens
+        self.vocab.add('<s>')
+        self.vocab.add('</s>')
     
     def build_counts_and_probabilities(self, texts: List[str]) -> None:
         """
@@ -33,7 +41,22 @@ class NGramModel:
         Args:
             texts: List of text samples to build counts from
         """
-        raise NotImplementedError("Subclasses must implement build_counts_and_probabilities()")
+        for text in texts:
+            words = ['<s>'] * (self.n - 1) + text.split() + ['</s>']
+            for i in range(len(words) - self.n + 1):
+                ngram = tuple(words[i:i+self.n])
+                prefix = ngram[:-1]
+                suffix = ngram[-1]
+                self.counts[len(prefix)][prefix][suffix] += 1
+        
+        # Build probabilities with Laplace smoothing
+        self.probabilities = {}
+        for order in range(1, self.n):
+            self.probabilities[order] = {}
+            for context, counter in self.counts[order].items():
+                total = sum(counter.values())
+                V = len(self.vocab)
+                self.probabilities[order][context] = {word: (count + 1) / (total + V) for word, count in counter.items()}
     
     def save_model(self, filepath: str) -> None:
         """
@@ -42,7 +65,14 @@ class NGramModel:
         Args:
             filepath: Path where the model should be saved
         """
-        raise NotImplementedError("Subclasses must implement save_model()")
+        data = {
+            'n': self.n,
+            'vocab': list(self.vocab),
+            'counts': {k: {c: dict(v) for c, v in v.items()} for k, v in self.counts.items()},
+            'probabilities': self.probabilities
+        }
+        with open(filepath, 'w') as f:
+            json.dump(data, f)
     
     def load(self, filepath: str) -> None:
         """
@@ -51,7 +81,15 @@ class NGramModel:
         Args:
             filepath: Path to the saved model file
         """
-        raise NotImplementedError("Subclasses must implement load()")
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        self.n = data['n']
+        self.vocab = set(data['vocab'])
+        self.counts = defaultdict(lambda: defaultdict(Counter))
+        for k, v in data['counts'].items():
+            for c, cnt in v.items():
+                self.counts[int(k)][tuple(eval(c))] = Counter(cnt)
+        self.probabilities = data['probabilities']
     
     def lookup(self, context: Tuple[str, ...]) -> Dict[str, float]:
         """
@@ -63,4 +101,13 @@ class NGramModel:
         Returns:
             Dictionary mapping next tokens to their probabilities
         """
-        raise NotImplementedError("Subclasses must implement lookup()")
+        order = len(context)
+        if order >= self.n:
+            order = self.n - 1
+        while order > 0:
+            if context[-order:] in self.probabilities[order]:
+                return self.probabilities[order][context[-order:]]
+            order -= 1
+        # If no context, return uniform over vocab
+        prob = 1.0 / len(self.vocab)
+        return {word: prob for word in self.vocab}

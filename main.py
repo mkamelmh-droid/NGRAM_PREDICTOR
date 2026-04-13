@@ -4,6 +4,12 @@ from ngram_model import NGramModel
 from predictor import Predictor
 from evaluator import Evaluator
 from predictor_ui import PredictorUI
+from data_prep import get_training_texts, save_normalized_books
+
+
+test_texts = [
+    "To Sherlock Holmes she is always _the_ woman. I have seldom heard him mention her under any other name."
+]
 
 
 def main():
@@ -43,20 +49,27 @@ def main():
         
         if choice == "1":
             print("Training model...")
-            # TODO: Implement training
-            pass
+            normalized_texts = get_training_texts()
+            model.build_vocab(normalized_texts)
+            model.build_counts_and_probabilities(normalized_texts)
+            save_normalized_books()
+            model.save_model("model.json")
+            print("Model trained and saved.")
+            print("Normalized training files saved to data/normalized.")
         elif choice == "2":
-            print("Making prediction...")
-            # TODO: Implement prediction
-            pass
+            context = input("Enter context: ").strip()
+            if context:
+                predictions = predictor.predict_next(context, 5)
+                print("Predictions:", predictions)
+            else:
+                print("No context provided.")
         elif choice == "3":
             print("Evaluating model...")
-            # TODO: Implement evaluation
-            pass
+            metrics = evaluator.run(test_texts)
+            print("Perplexity:", metrics['perplexity'])
         elif choice == "4":
-            print("Starting interactive UI...")
-            # TODO: Implement UI
-            pass
+            print("Launching UI...")
+            ui.run()
         elif choice == "5":
             print("Exiting...")
             break
