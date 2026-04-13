@@ -28,40 +28,40 @@ class Predictor:
     - Return top-k predictions sorted by probability
     """
     
-    def __init__(self, model: NGramModel, normalizer: Normalizer):
+    def __init__(self, model_path, vocab_path):
         """
-        Initialize the Predictor with pre-loaded model and normalizer.
+        Initialize the Predictor with model and vocab paths.
         
         Args:
-            model: Trained NGramModel instance with loaded probabilities
-            normalizer: Normalizer instance configured for text preprocessing
+            model_path: Path to the JSON file containing the model probabilities
+            vocab_path: Path to the JSON file containing the vocabulary
         
         Returns:
-            None. Sets self.model and self.normalizer.
-        
-        Note:
-            No file I/O or model training occurs here.
-            Assumes model and normalizer are already trained/initialized.
+            None. Loads self.model and sets self.normalizer.
         """
-        self.model = model
-        self.normalizer = normalizer
+        self.model = NGramModel()
+        self.model.load(model_path, vocab_path)
+        self.normalizer = Normalizer()
     
-    def normalize(self, text: str) -> str:
+    def normalize(self, text) -> str:
         """
         Normalize input text and extract context words.
         
         Algorithm:
-        1. Call Normalizer.normalize(text) to clean and lowercase
-        2. Extract the last NGRAM_ORDER-1 words from normalized text
-        3. Return these words as space-separated string (context)
+        1. If text is list, join with space
+        2. Call Normalizer.normalize(text) to clean and lowercase
+        3. Extract the last NGRAM_ORDER-1 words from normalized text
+        4. Return these words as space-separated string (context)
         
         Args:
-            text: Raw input string from user (may contain uppercase, punctuation, etc.)
+            text: Raw input text from user (may be str or list of words)
         
         Returns:
             String of last NGRAM_ORDER-1 normalized words, space-separated
             Empty string if input has fewer than NGRAM_ORDER-1 words
         """
+        if isinstance(text, list):
+            text = ' '.join(text)
         # Normalize the input text
         normalized = self.normalizer.normalize(text)
         

@@ -89,7 +89,7 @@ class Normalizer:
     
     def normalize(self, text: str) -> str:
         """
-        Normalize text: lowercase, clean whitespace, but keep punctuation as separate tokens.
+        Normalize text by lowercasing and preserving punctuation.
         
         Args:
             text: Raw input text to normalize
@@ -101,11 +101,7 @@ class Normalizer:
         # Example: "Hello World" -> "hello world"
         text = text.lower()
         
-        # STEP B: Keep punctuation but clean up whitespace
-        # Instead of removing punctuation, we preserve it for better context
-        # This allows the model to learn punctuation patterns
-        
-        # STEP C: Clean up whitespace
+        # STEP B: Clean up whitespace
         # Replace multiple consecutive spaces with single space
         # Example: "hello    world" -> "hello world"
         # Also strip leading/trailing whitespace
