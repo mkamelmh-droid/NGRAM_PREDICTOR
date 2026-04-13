@@ -10,3 +10,7 @@ NGRAM_ORDER = 4
 # Frequency threshold for vocabulary building
 # Words appearing fewer than this many times are replaced with <UNK>
 UNK_THRESHOLD = 1
+
+# Number of top predictions to return from inference
+# predict_next(text, k=TOP_K) returns the k most likely next words
+TOP_K = 5

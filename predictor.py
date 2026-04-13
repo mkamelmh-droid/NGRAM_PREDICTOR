@@ -1,43 +1,167 @@
-"""Predictor module for generating next word predictions."""
-from typing import List
+"""
+Predictor module for next-word inference.
+Implements backoff-based prediction using pre-trained NGramModel and text normalization.
+
+Module Responsibility:
+- Accept normalized user input text
+- Extract context (last NGRAM_ORDER-1 words)
+- Map OOV words to <UNK>
+- Use NGramModel.lookup() for backoff-based ranking
+- Return top-k words sorted by probability
+"""
+
+from typing import List, Tuple
 from ngram_model import NGramModel
 from normalizer import Normalizer
-import heapq
+from config import NGRAM_ORDER, TOP_K
 
 
 class Predictor:
-    """Generates predictions for the next word using an N-gram model."""
+    """
+    Next-word predictor using backoff n-gram model.
+    
+    Responsibility:
+    - Accept a pre-loaded NGramModel and Normalizer (no file I/O in __init__)
+    - Normalize input text and extract context
+    - Handle OOV words by mapping to <UNK>
+    - Delegate backoff lookup to NGramModel.lookup()
+    - Return top-k predictions sorted by probability
+    """
     
     def __init__(self, model: NGramModel, normalizer: Normalizer):
         """
-        Initialize the Predictor.
+        Initialize the Predictor with pre-loaded model and normalizer.
         
         Args:
-            model: Trained NGramModel instance
-            normalizer: Normalizer instance for preprocessing text
+            model: Trained NGramModel instance with loaded probabilities
+            normalizer: Normalizer instance configured for text preprocessing
+        
+        Returns:
+            None. Sets self.model and self.normalizer.
+        
+        Note:
+            No file I/O or model training occurs here.
+            Assumes model and normalizer are already trained/initialized.
         """
         self.model = model
         self.normalizer = normalizer
     
-    def predict_next(self, context: str, k: int = 5) -> List[str]:
+    def normalize(self, text: str) -> str:
         """
-        Predict the next word(s) given a context.
+        Normalize input text and extract context words.
+        
+        Algorithm:
+        1. Call Normalizer.normalize(text) to clean and lowercase
+        2. Extract the last NGRAM_ORDER-1 words from normalized text
+        3. Return these words as space-separated string (context)
         
         Args:
-            context: Input text context
-            k: Number of top predictions to return
-            
-        Returns:
-            List of k most likely next words
-        """
-        normalized = self.normalizer.normalize(context)
-        words = normalized.split()
-        if len(words) < self.model.n - 1:
-            context_tuple = tuple(['<s>'] * (self.model.n - 1 - len(words)) + words)
-        else:
-            context_tuple = tuple(words[-(self.model.n - 1):])
+            text: Raw input string from user (may contain uppercase, punctuation, etc.)
         
-        probs = self.model.lookup(context_tuple)
-        # Get top k
-        top_k = heapq.nlargest(k, probs.items(), key=lambda x: x[1])
-        return [word for word, prob in top_k]
+        Returns:
+            String of last NGRAM_ORDER-1 normalized words, space-separated
+            Empty string if input has fewer than NGRAM_ORDER-1 words
+        """
+        # Normalize the input text
+        normalized = self.normalizer.normalize(text)
+        
+        # Split into words
+        words = normalized.split()
+        
+        # Extract last NGRAM_ORDER-1 words as context
+        # Example: NGRAM_ORDER=4, so extract last 3 words
+        context_size = NGRAM_ORDER - 1
+        
+        if len(words) >= context_size:
+            context_words = words[-context_size:]
+        else:
+            # If fewer words than context size, return what we have
+            context_words = words
+        
+        # Return as space-separated string
+        return " ".join(context_words)
+    
+    def map_oov(self, context: str) -> str:
+        """
+        Replace out-of-vocabulary words in context with <UNK>.
+        
+        Algorithm:
+        1. Split context into words
+        2. For each word, check if it exists in model's vocabulary
+        3. If not in vocab, replace with <UNK> token
+        4. Return mapped context as space-separated string
+        
+        Args:
+            context: Space-separated string of context words
+        
+        Returns:
+            Space-separated string with OOV words replaced by <UNK>
+        """
+        if not context:
+            return context
+        
+        # Split context into words
+        words = context.split()
+        
+        # Map each word: keep if in vocab, else replace with <UNK>
+        mapped_words = [
+            word if word in self.model.word_to_id else '<UNK>'
+            for word in words
+        ]
+        
+        # Return as space-separated string
+        return " ".join(mapped_words)
+    
+    def predict_next(self, text: str, k: int = None) -> List[str]:
+        """
+        Predict the top-k most likely next words.
+        
+        Pipeline:
+        1. normalize(text) to clean input and extract context
+        2. map_oov(context) to handle unknown words
+        3. NGramModel.lookup(context) for backoff-based ranking
+        4. Sort candidates by probability (highest first)
+        5. Return top-k words
+        
+        Backoff logic is delegated entirely to NGramModel.lookup():
+        - Try 4-gram context first
+        - If not found, try 3-gram
+        - If not found, try 2-gram
+        - If not found, fall back to 1-gram (always succeeds)
+        
+        Args:
+            text: Raw input text from user
+            k: Number of top predictions to return (DEFAULT: TOP_K from config)
+        
+        Returns:
+            List of top-k words sorted by probability descending
+            Empty list if no predictions found (only if model is empty)
+        
+        Output Format:
+            ["watson", "holmes", "inspector", "said", "the"]
+        """
+        # Use TOP_K from config if not specified
+        if k is None:
+            k = TOP_K
+        
+        # Step 1: Normalize and extract context
+        context = self.normalize(text)
+        
+        # Step 2: Map OOV words
+        mapped_context = self.map_oov(context)
+        
+        # Step 3: Lookup probabilities via backoff
+        # Returns dict {word: probability} from highest-order successful match
+        prob_dict = self.model.lookup(mapped_context)
+        
+        if not prob_dict:
+            # No predictions found (very rare - model should always have 1-gram fallback)
+            return []
+        
+        # Step 4: Sort by probability (highest first)
+        sorted_words = sorted(prob_dict.items(), key=lambda x: x[1], reverse=True)
+        
+        # Step 5: Return top-k words (strip probabilities)
+        top_k_words = [word for word, prob in sorted_words[:k]]
+        
+        return top_k_words
