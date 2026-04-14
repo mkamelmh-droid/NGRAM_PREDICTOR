@@ -26,7 +26,7 @@ Get predictions in seconds!
    cd NGRAM_PREDICTOR
    ```
 
-2. Create and activate the Anaconda environment:
+2. Create and activate an Anaconda environment:
    ```bash
    conda env create -f environment.yml
    conda activate ngram-env
@@ -36,6 +36,14 @@ Get predictions in seconds!
    ```bash
    pip install -r requirements.txt
    ```
+
+4. Populate `config/.env` with your local paths and settings.
+
+5. Download the four training books and place them in `data/raw/train/`:
+   - study_in_scarlet.txt
+   - sign_of_the_four.txt
+   - hound_of_the_baskervilles.txt
+   - valley_of_fear.txt
 
 ## Usage
 
@@ -70,12 +78,17 @@ NGRAM_PREDICTOR/
 ├── ngram_model.py          # N-gram model implementation
 ├── predictor.py            # Prediction interface
 ├── data_prep.py            # Data preparation utilities
-├── data/                   # Data directory
-│   ├── train_raw/          # Raw training texts
-│   ├── train_tokens.txt    # Tokenized training data
-│   ├── model.json          # Trained model
-│   └── vocab.json          # Vocabulary
-├── config/                 # Configuration
+├── data/
+│   ├── raw/
+│   │   ├── train/          # Raw training texts
+│   │   └── eval/           # Raw evaluation texts (extra credit)
+│   ├── processed/
+│   │   ├── train_tokens.txt # Tokenized training data
+│   │   └── eval_tokens.txt  # Tokenized evaluation data (extra credit)
+│   └── model/
+│       ├── model.json      # Trained model
+│       └── vocab.json      # Vocabulary
+├── config/
 │   └── .env                # Environment variables
 ├── requirements.txt        # Python dependencies
 ├── environment.yml         # Anaconda environment
@@ -90,11 +103,18 @@ All settings are loaded from `config/.env`. Key variables:
 - `UNK_THRESHOLD`: Frequency threshold for unknown words (default: 1)
 - `TOP_K`: Default number of predictions (default: 5)
 
-## Development
+## Configuration
 
-- Developed in VS Code
-- Uses Git for version control
-- Public repository on GitHub
+All settings are loaded from `config/.env`. Required variables:
+- `TRAIN_RAW_DIR=data/raw/train/`
+- `EVAL_RAW_DIR=data/raw/eval/`
+- `TRAIN_TOKENS=data/processed/train_tokens.txt`
+- `EVAL_TOKENS=data/processed/eval_tokens.txt`
+- `MODEL=data/model/model.json`
+- `VOCAB=data/model/vocab.json`
+- `UNK_THRESHOLD=1`
+- `TOP_K=5`
+- `NGRAM_ORDER=4`
 
 ## License
 

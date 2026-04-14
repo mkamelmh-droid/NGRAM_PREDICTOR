@@ -13,14 +13,17 @@ except ImportError:
 from normalizer import Normalizer
 from ngram_model import NGramModel
 from predictor import Predictor
-from config import TOP_K
+from config import (
+    TRAIN_RAW_DIR, TRAIN_TOKENS, MODEL, VOCAB, TOP_K,
+    EVAL_RAW_DIR, EVAL_TOKENS
+)
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT_DIR, "data")
-RAW_DATA_DIR = os.path.join(DATA_DIR, "train_raw")
-TRAIN_TOKENS_FILE = os.path.join(DATA_DIR, "train_tokens.txt")
-MODEL_PATH = os.path.join(DATA_DIR, "model.json")
-VOCAB_PATH = os.path.join(DATA_DIR, "vocab.json")
+RAW_DATA_DIR = os.path.join(DATA_DIR, "raw", "train")
+TOKENS_OUTPUT_FILE = os.path.join(DATA_DIR, "processed", "train_tokens.txt")
+MODEL_PATH = os.path.join(DATA_DIR, "model", "model.json")
+VOCAB_PATH = os.path.join(DATA_DIR, "model", "vocab.json")
 ENV_PATH = os.path.join(ROOT_DIR, "config", ".env")
 
 
@@ -35,15 +38,15 @@ def run_dataprep() -> None:
     print("Step: dataprep")
     print("=" * 50)
 
-    if os.path.isdir(RAW_DATA_DIR) and any(f.endswith('.txt') for f in os.listdir(RAW_DATA_DIR)):
-        input_folder = RAW_DATA_DIR
+    if os.path.isdir(TRAIN_RAW_DIR) and any(f.endswith('.txt') for f in os.listdir(TRAIN_RAW_DIR)):
+        input_folder = TRAIN_RAW_DIR
     else:
-        input_folder = DATA_DIR
+        input_folder = RAW_DATA_DIR
 
     normalizer = Normalizer()
-    normalizer.process_and_save(input_folder=input_folder, output_file=TRAIN_TOKENS_FILE)
+    normalizer.process_and_save(input_folder=input_folder, output_file=TRAIN_TOKENS)
 
-    print(f"Produced training tokens: {TRAIN_TOKENS_FILE}")
+    print(f"Produced training tokens: {TRAIN_TOKENS}")
 
 
 def run_model() -> None:
@@ -52,20 +55,20 @@ def run_model() -> None:
     print("Step: model")
     print("=" * 50)
 
-    if not os.path.isfile(TRAIN_TOKENS_FILE):
+    if not os.path.isfile(TRAIN_TOKENS):
         raise FileNotFoundError(
-            f"Training tokens not found: {TRAIN_TOKENS_FILE}. "
+            f"Training tokens not found: {TRAIN_TOKENS}. "
             "Run `python main.py --step dataprep` first."
         )
 
     model = NGramModel()
-    model.build_vocab(TRAIN_TOKENS_FILE)
-    model.build_counts_and_probabilities(TRAIN_TOKENS_FILE)
-    model.save_model(MODEL_PATH)
-    model.save_vocab(VOCAB_PATH)
+    model.build_vocab(TRAIN_TOKENS)
+    model.build_counts_and_probabilities(TRAIN_TOKENS)
+    model.save_model(MODEL)
+    model.save_vocab(VOCAB)
 
-    print(f"Model saved: {MODEL_PATH}")
-    print(f"Vocab saved: {VOCAB_PATH}")
+    print(f"Model saved: {MODEL}")
+    print(f"Vocab saved: {VOCAB}")
 
 
 def run_inference(k: int = None) -> None:
@@ -74,12 +77,12 @@ def run_inference(k: int = None) -> None:
     print("Step: inference")
     print("=" * 50)
 
-    if not os.path.isfile(MODEL_PATH) or not os.path.isfile(VOCAB_PATH):
+    if not os.path.isfile(MODEL) or not os.path.isfile(VOCAB):
         raise FileNotFoundError(
             f"Model or vocab file missing. Run `python main.py --step model` first."
         )
 
-    predictor = Predictor(MODEL_PATH, VOCAB_PATH)
+    predictor = Predictor(MODEL, VOCAB)
     if k is None:
         k = TOP_K
 

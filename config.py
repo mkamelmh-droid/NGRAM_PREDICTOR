@@ -2,15 +2,28 @@
 Configuration settings for the N-gram predictor system.
 Definitions of global constants used across modules.
 """
+import os
+from dotenv import load_dotenv
 
-# N-gram order (number of words in context + 1 for prediction)
-# Example: NGRAM_ORDER=4 means we predict word[i] given words[i-3:i]
-NGRAM_ORDER = 4
+# Load environment variables from config/.env
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "config", ".env"))
 
-# Frequency threshold for vocabulary building
-# Words appearing fewer than this many times are replaced with <UNK>
-UNK_THRESHOLD = 1
+# Data directories
+TRAIN_RAW_DIR = os.getenv("TRAIN_RAW_DIR", "data/raw/train/")
+EVAL_RAW_DIR = os.getenv("EVAL_RAW_DIR", "data/raw/eval/")
 
-# Number of top predictions to return from inference
-# predict_next(text, k=TOP_K) returns the k most likely next words
-TOP_K = 5
+# Processed data files
+TRAIN_TOKENS = os.getenv("TRAIN_TOKENS", "data/processed/train_tokens.txt")
+EVAL_TOKENS = os.getenv("EVAL_TOKENS", "data/processed/eval_tokens.txt")
+
+# Model files
+MODEL = os.getenv("MODEL", "data/model/model.json")
+VOCAB = os.getenv("VOCAB", "data/model/vocab.json")
+
+# Model parameters
+UNK_THRESHOLD = int(os.getenv("UNK_THRESHOLD", 1))
+TOP_K = int(os.getenv("TOP_K", 5))
+NGRAM_ORDER = int(os.getenv("NGRAM_ORDER", 4))
+
+# Optional logging
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
